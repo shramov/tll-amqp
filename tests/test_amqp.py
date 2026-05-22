@@ -48,3 +48,49 @@ async def test_sub(asyncloop):
     for i in range(3):
         m = await c.recv()
         assert m.data.tobytes() == b'xxx-%d' % i
+
+    c.close()
+
+    for i in range(3, 6):
+        await chan.basic_publish(b'xxx-%d' % i, routing_key=amqp_queue)
+
+    c.open()
+    assert (await c.recv_state()) == c.State.Active
+
+    for i in range(3, 6):
+        m = await c.recv()
+        assert m.data.tobytes() == b'xxx-%d' % i
+
+@asyncloop_run
+async def test_sub_ack(asyncloop):
+    conn, chan, amqp_queue = await amqp_prepare()
+
+    c = asyncloop.Channel('amqp://localhost:5672', queue=amqp_queue, mode='sub', ack='manual', name='amqp', dump='frame')
+    c.open()
+    assert (await c.recv_state()) == c.State.Active
+
+    for i in range(3):
+        await chan.basic_publish(b'xxx-%d' % i, routing_key=amqp_queue)
+
+    for i in range(3):
+        m = await c.recv()
+        assert m.data.tobytes() == b'xxx-%d' % i
+
+    c.close()
+    c.open()
+    assert (await c.recv_state()) == c.State.Active
+
+    for i in range(0, 3):
+        m = await c.recv()
+        assert m.data.tobytes() == b'xxx-%d' % i
+        c.post(b'', name='Ack', type=c.Type.Control, addr=m.addr)
+
+    c.close()
+    for i in range(3, 6):
+        await chan.basic_publish(b'xxx-%d' % i, routing_key=amqp_queue)
+    c.open()
+    assert (await c.recv_state()) == c.State.Active
+
+    for i in range(3, 6):
+        m = await c.recv()
+        assert m.data.tobytes() == b'xxx-%d' % i

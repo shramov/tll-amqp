@@ -10,6 +10,9 @@
 
 #include "handler.h"
 
+static constexpr std::string_view ack_scheme = "yamls://[{name: Ack, id: 80}]";
+static constexpr int control_ack_msgid = 80;
+
 class AMQPConn : public tll::channel::Base<AMQPConn>
 {
 	using Base = tll::channel::Base<AMQPConn>;
@@ -20,6 +23,7 @@ class AMQPConn : public tll::channel::Base<AMQPConn>
 
 	std::string _exchange;
 	std::string _key;
+	bool _autoack = true;
 
 	std::optional<AMQP::TcpConnection> _conn;
 	std::optional<AMQP::Address> _addr;
@@ -35,6 +39,12 @@ class AMQPConn : public tll::channel::Base<AMQPConn>
 
 	int _post(const tll_msg_t * msg, int flags)
 	{
+		if (msg->type == TLL_MESSAGE_CONTROL) {
+			if (!_autoack && msg->msgid == control_ack_msgid)
+				_channel->ack(msg->addr.u64);
+			return 0;
+		} else if (msg->type != TLL_MESSAGE_DATA)
+			return 0;
 		if (!_pub)
 			return ENOSYS;
 		_channel->publish(_exchange, _key, (const char *) msg->data, msg->size, 0);
@@ -50,10 +60,16 @@ int AMQPConn::_init(const tll::Channel::Url &cfg, tll::Channel *master)
 	_exchange = reader.getT("exchange", std::string {});
 	_key = reader.getT<std::string>("queue");
 	_pub = reader.getT("mode", true, {{"pub", true}, {"sub", false}});
+	_autoack = reader.getT("ack", true, {{"auto", true}, {"manual", false}});
 	auto vhost = reader.getT("vhost", std::string("/"));
 	auto host = reader.getT<tll::network::hostport>("tll.host");
 	if (!reader)
 		return _log.fail(EINVAL, "Invalid init parameters: {}", reader.error());
+
+	if (!_autoack) {
+		if (auto r = _scheme_load(ack_scheme, TLL_MESSAGE_CONTROL); r)
+			return _log.fail(r, "Failed to load control scheme");
+	}
 
 	if (host.port == 0)
 		host.port = 5672;
@@ -77,7 +93,9 @@ int AMQPConn::_open(const tll::ConstConfig &cfg)
 				tll_msg_t m = { TLL_MESSAGE_DATA };
 				m.data = msg.body();
 				m.size = msg.bodySize();
-				_channel->ack(tag);
+				m.addr.u64 = tag;
+				if (_autoack)
+					_channel->ack(tag);
 				_callback_data(&m);
 			}).onError([this](const char * error) {
 				_log.error("Consumer error: {}", error);
