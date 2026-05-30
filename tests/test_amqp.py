@@ -10,7 +10,7 @@ async def amqp_prepare():
     conn = await aiormq.connect('amqp://guest:guest@localhost/')
     chan = await conn.channel()
 
-    amqp_queue = (await chan.queue_declare('', auto_delete=True)).queue
+    amqp_queue = (await chan.queue_declare('', durable=True, arguments={'x-expires': 5000})).queue
 
     return conn, chan, amqp_queue
 
