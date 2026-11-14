@@ -1,13 +1,22 @@
-import aiormq
 import asyncio
 import decorator
+import pytest
 
 @decorator.decorator
 def asyncloop_run(f, asyncloop, *a, **kw):
     asyncloop.run(f(asyncloop, *a, **kw))
 
 async def amqp_prepare():
-    conn = await aiormq.connect('amqp://guest:guest@localhost/')
+    try:
+        import aiormq
+    except:
+        pytest.skip("aiormq is not available")
+
+    try:
+        conn = await aiormq.connect('amqp://guest:guest@localhost/')
+    except:
+        pytest.skip("rabbitmq server is not available")
+
     chan = await conn.channel()
 
     amqp_queue = (await chan.queue_declare('', durable=True, arguments={'x-expires': 5000})).queue
