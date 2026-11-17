@@ -32,7 +32,7 @@ async def test_pub(asyncloop):
 
     await chan.basic_consume(amqp_queue, consume, no_ack=True)
 
-    pub = asyncloop.Channel('amqp://localhost:5672', queue=amqp_queue, name='amqp', dump='frame')
+    pub = asyncloop.Channel('amqp://localhost:5672', queue=amqp_queue, mode='pub', name='amqp', dump='frame')
     pub.open()
     assert (await pub.recv_state()) == pub.State.Active
 
@@ -47,7 +47,7 @@ async def test_pub(asyncloop):
 async def test_sub(asyncloop):
     conn, chan, amqp_queue = await amqp_prepare()
 
-    c = asyncloop.Channel('amqp://localhost:5672', queue=amqp_queue, mode='sub', name='amqp', dump='frame')
+    c = asyncloop.Channel('amqp://localhost:5672', queue=amqp_queue, name='amqp', dump='frame')
     c.open()
     assert (await c.recv_state()) == c.State.Active
 

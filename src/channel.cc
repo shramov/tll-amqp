@@ -59,7 +59,7 @@ int AMQPConn::_init(const tll::Channel::Url &cfg, tll::Channel *master)
 	auto reader = channel_props_reader(cfg);
 	_exchange = reader.getT("exchange", std::string {});
 	_key = reader.getT<std::string>("queue");
-	_pub = reader.getT("mode", true, {{"pub", true}, {"sub", false}});
+	_pub = reader.getT("mode", false, {{"pub", true}, {"sub", false}});
 	_autoack = reader.getT("ack", true, {{"auto", true}, {"manual", false}});
 	auto vhost = reader.getT("vhost", std::string("/"));
 	auto host = reader.getT<tll::network::hostport>("tll.host");
